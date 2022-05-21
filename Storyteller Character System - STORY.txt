@@ -1,0 +1,98 @@
+
+th u(newcobj,Storyteller Character System <STORY>,story,,,,WIZARD SAFE !NO_COMMAND,INHERIT SIDEFX SAFE)
+@lock/use [u(cobj,story)]=ISADMIN2/1
+
+&CMD`+EDITCHAR`PENNMUSH [u(cobj,story)]=$^\+edit(char|db)(?\:/(\S+))?(?\: +(.+?))?(?\:=(.*))?$:@attach %!/CMD`+EDITCHAR`%1=%2,%3,%4
+@set [u(cobj,story)]/CMD`+EDITCHAR`PENNMUSH=regexp no_inherit
+&CMD`+EDITCHAR`RHOSTMUSH [u(cobj,story)]=$^\+edit(char|db)(?\:/(\\S+))?(?\: +(.+?))?(?\:=(.*))?$:@attach %!/CMD`+EDITCHAR`%1=%2,%3,%4
+@set [u(cobj,story)]/CMD`+EDITCHAR`RHOSTMUSH=regexp no_inherit
+@set [u(cobj,story)]/CMD`+EDITCHAR`[u(choosegame,RHOSTMUSH,PENNMUSH)]=no_command
+
+&CMD`+EDITCHAR`CHAR [u(cobj,story)]=@attach %!/INC`GETSWITCH=%0;th iter(%1,u(setq,chr(add(inum(0),64)),%i0),|);@select/inline %q<switch>=CONFIG,{@attach %!/INC`CONFIG=%1,%2},{@attach %!/INC`CHECKPC=%qa,1,,1;@check strlen(%qb)=@attach %!/INC`MSG=ERROR: No Type entered to %q<switch> Your choices are: [itemize(iter(u(lattr,[u(cobj,story)]/CHAR`%q<switch>`*,|),last(%i0,`),|,|),|,and,\,)]!;@attach %!/INC`PARTIAL=%qb,iter(u(lattr,%!/CHAR`%q<switch>`*,|),last(%i0,`),|,|),|,topic,option;@attach [u(cobj,story)]/CHAR`%q<switch>`%q<topic>=%q<t1>,iter(after(%1,elements(%1,1 2,|,|)|),squish(%i0),|,|),iter(%2,squish(%i0),|,|)}
+
+&CMD`+EDITCHAR`DB [u(cobj,story)]=
+
+&SWITCHES`ADMIN [u(cobj,story)]=SET|REM|ADD|TAG|CONFIG|CREATE|DELETE|RENAME
+&SYSTEM`NAME [u(cobj,story)]=EDITCHAR
+
+&DO`ANNOUNCE [u(cobj,story)]=@attach %!/INC`MSG`CHAN=%1;@select/inline strmatch(%#,%0)=0,{@attach %!/INC`MSG=%2,%0;@attach %!/INC`MSG=%3},1,{@attach %!/INC`MSG=%2,%0}
+
+&DO`CHECKSTAT [u(cobj,story)]=@select/inline strlen(u(setr,value,%2))=>0,{@attach %!/INC`VALID`POSINT=%2,%1}
+
+&DO`RENDERSTAT [u(cobj,story)]=th u(setq,msg,if(strlen(%q<value>),'[ansi(h,u(capnames,u(strfirstof,%2,%q<find>)))]' %1 was set to: [ansi(h,%q<value>)].,'[ansi(h,u(capnames,u(strfirstof,%2,%q<find>)))]' %1 was cleared.));@attach %!/DO`ANNOUNCE=%0,{[ansi(h,name(%0))]'s %q<msg>},{Your %q<msg>},{[ansi(h,name(%0))]'s %q<msg>}
+
+@@ %0 - player being modified. %1 - message for admin channel. %2 - message for player. %3 - message for admin.
+
+@@ Setters
+&FUN`CLEAN_PATH [u(cobj,story)]=u(filter,strlen,iter(%0,u(capnames,squish(%i0)),|,|),|,|)
+&REG`VALID_TRAIT_NAME [u(cobj,story)]=[A-Z0-9\-\.' ?]{4,80}
+&FUN`VALID_TRAIT_NAME [u(cobj,story)]=localize(if(isnum(%0),#-1 TRAIT NAMES MAY NOT BE NUMERIC,if(regmatchi(v(REG`VALID_TRAIT_NAME),u(setr,vtn,squish(%0))),u(capnames,%q<vtn>),#-1 TRAIT NAMES MUST BE SIMPLER)))
+
+&FUN`CLEAN_WORDPOWERS [u(cobj,story)]=iter(u(capnames,squish(%0)),squish(before(%i0,~))~[strfirstof(squish(after(%i0,~)),1)],|,|)
+&FUN`VALIDATE_WORDPOWERS [u(cobj,story)]=localize(if(strmatch(u(setr,check,squish(iter(%0,if(cand(u(FUN`VALID_TRAIT_NAME,before(%i0,~)),gte(after(%i0,~),1)),,0[ibreak()]),|,%B))),#-*),#-1 ONE OR MORE TRAIT NAMES DID NOT VALIDATE,1))
+&FUN`STRIPNUM_WORDPOWERS [u(cobj,story)]=iter(%0,before(%i0,~),|,|)
+
+&INC`PATHID [u(cobj,story)]=@check words(u(setr,%1,u(FUN`CLEAN_PATH,%0)),|)=@attach %!/INC`MSG=ERROR: No Trait Path entered. Contact a coder!;@dolist/inline/delimit | r(%1)={@check regmatchi(v(REG`VALID_TRAIT_NAME),%i0)=@attach %!/INC`MSG=ERROR: %i0 is not a valid Trait Name.};@select/inline t(u(setr,%2,u(mysql,GET`TRAIT_CATEGORY,elements(r(%1),1,|),elements(r(%1),2,|),elements(r(%1),3,|),elements(r(%1),4,|))))=0,{@select/inline t(%5)=1,{@check u(setr,u(mysql,GET`TRAIT_CATEGORY`PARTIAL,elements(r(%1),1,|),elements(r(%1),2,|),elements(r(%1),3,|),elements(r(%1),4,|)))=@attach %!/INC`MSG=ERROR: Could not find Trait Path '%1'.},{@check %3=@attach %!/INC`MSG=ERROR: Could not find or Create Trait Path '%1'.;@attach %!/INC`DOSQL=INSERT`TRAIT_CATEGORY/%2,elements(r(%1),1,|),elements(r(%1),2,|),elements(r(%1),3,|),elements(r(%1),4,|);@select/inline t(%4)=1,{@@ DO LOGGING HERE}}}
+
+@@ %0 - pipe-delimited category. %1 - register name for pathname, %2 - register name for pathid. %3 - true if allow creation. %4 - entity id of creator if %3. %5 - true to enable partial match searching. incompatible with allow-create.
+
+&INC`TRAITID [u(cobj,story)]=@check strlen(%1)=@attach %!/INC`MSG=ERROR: No Trait entered.;@check u(setr,%3,u(FUN`VALID_TRAIT_NAME,%1))=@attach %!/INC`MSG=ERROR: '%1' is not a valid Trait name.;@select/inline t(u(setr,%2,u(mysql,GET`TRAIT,%0,r(%3))))=0,{@select/inline t(%7)=1,{@check t(u(setr,%2,u(mysql,GET`TRAIT`PARTIAL,%0,r(%3))))=@attach %!/INC`MSG=ERROR: Could not find or create Trait '%1' in path '%6'.},{@check %4=@attach %!/INC`MSG=ERROR: Could not find or create Trait '%1' in path '%6'.;@attach %!/INC`DOSQL=INSERT`TRAIT/%2,%0,r(%3);@select/inline t(%5)=1,{@@ DO LOGGING HERE}}};
+
+@@ %0 - trait category id. %1 - trait name. %2 - register for trait id. %3 - register for traitname. %4 - true if allow creation. %5 - entity ID of creator if %4. %6 - path name. %7 true to enable partial match. incompatible with allow-create
+
+&TARGET`TRAIT [u(cobj,story)]=@attach %!/INC`PATHID=%0,fpath,fpathid,%2,%4,%5;@attach %!/INC`TRAITID=%q<fpathid>,%1,traitid,traitname,%3,%4,%q<fpath>,%6
+
+@@ %0 - pipe-delimited category path. %1 - trait name. %2 - true if allow category creation. %3 - true if allow trait creation. %4 - entity id of creator. %5 true to enable partial match path searching. %6 true to enable partial match trait searching.
+
+&SET`TRAIT [u(cobj,story)]=@attach %!/TARGET`TRAIT=%1,%2,%3,%4,%5,%8,%9;@attach %!/INC`VALID`POSINT=%6,%q<traitname>,0;@select/inline t(u(setr,ptraitid,GET`PERSONA_TRAIT,u(setr,persona,get(%0/D`PERSONA)),%q<traitid>))=1,{@select/inline cand(eq(%q<value>,0),%7)=1,{@attach %!/INC`DOSQL=DELETE`PERSONA_TRAIT,%q<ptraitid>},{@attach %!/INC`DOSQL=SET`PERSONA_TRAIT`VALUE,%q<value>,%q<ptraitid>}},{@attach %!/INC`DOSQL=INSERT`PERSONA_TRAIT/ptraitid,%q<persona>,%q<traitid>,%q<value>}
+
+@@ %0 - objid of target. %1 - pipe-delimited category path. %2 - trait name. %3 - true if allow category creation. %4 - true if allow trait creation. %5 - entity id of creator. %6 - value of trait. %7 - delete-if-zero mode., %8 true for partial match path searching, %9 - true for partial match trait searching.
+@@ Partial matching incompatible with allow-create.
+
+&FLAG`TRAIT [u(cobj,story)]=@attach %!/TARGET`TRAIT=%1,%2,%3,%4,%5,%8,%9;@attach %!/INC`VALID`POSINT=%6,%q<traitname>,0;@attach %!/INC`DOSQL=INSERT`PERSONA_TRAIT`FLAGS_%6,%q<persona>,%q<traitid>,%7
+@@ %0 - objid of target. %1 - pipe-delimited category path. %2 - trait name. %3 - true if allow category creation. %4 - true if allow trait creation. %5 - entity id of creator. %6 - Flags 1 or 2. %7 - flag value, %8 true for partial match path searching, %9 - true for partial match trait searching.
+@@ Partial matching incompatible with allow-create.
+
+&Q`GET`TRAIT_CATEGORY [u(cobj,story)]=SELECT trait_category_id FROM vol_story_trait_categories WHERE cat_name_1=? AND cat_name_2=? AND cat_name_3=? AND cat_name_4=? LIMIT 1
+
+&Q`GET`TRAIT_CATEGORY`PARTIAL [u(cobj,story)]=SELECT trait_category_id FROM vol_story_trait_categories WHERE cat_name_1 LIKE '!%%' AND cat_name_2 LIKE '!%%' AND cat_name_3 LIKE '!%%' AND cat_name_4 LIKE '!%%' LIMIT 1
+
+&Q`INSERT`TRAIT_CATEGORY [u(cobj,story)]=INSERT INTO vol_story_trait_categories (cat_name_1,cat_name_2,cat_name_3,cat_name_4) VALUES (?,?,?,?)
+
+&Q`GET`TRAIT [u(cobj,story)]=SELECT trait_id FROM vol_story_traits WHERE trait_category_id=? AND trait_name=? LIMIT 1
+
+&Q`GET`TRAIT`PARTIAL [u(cobj,story)]=SELECT trait_id FROM vol_story_traits WHERE trait_category_id=? AND trait_name LIKE '!%%' LIMIT 1
+
+&Q`INSERT`TRAIT [u(cobj,story)]=INSERT INTO vol_story_traits (trait_category_id,trait_name) VALUES(?,?)
+
+&Q`GET`PERSONA_TRAIT [u(cobj,story)]=SELECT persona_trait_id FROM vol_story_persona_traits WHERE persona_id=? AND trait_id=? LIMIT 1
+
+&Q`INSERT`PERSONA_TRAIT [u(cobj,story)]=INSERT INTO vol_story_persona_traits (persona_id,trait_id,trait_value) VALUES (?,?,?)
+
+&Q`INSERT`PERSONA_TRAIT`FLAGS_1 [u(cobj,story)]=INSERT INTO vol_story_persona_traits (persona_id,trait_id,trait_value,trait_flags_1) VALUES (?,?,0,?) ON DUPLICATE KEY UPDATE trait_flags_1=VALUES(trait_flags_1)
+
+&Q`INSERT`PERSONA_TRAIT`FLAGS_2 [u(cobj,story)]=INSERT INTO vol_story_persona_traits (persona_id,trait_id,trait_value,trait_flags_2) VALUES (?,?,0,?) ON DUPLICATE KEY UPDATE trait_flags_2=VALUES(trait_flags_2)
+
+&Q`SET`PERSONA_TRAIT`VALUE [u(cobj,story)]=UPDATE vol_story_persona_traits SET trait_value=? WHERE persona_trait_id=? LIMIT 1
+
+&Q`SET`PERSONA_TRAIT`FLAGS_1 [u(cobj,story)]=UPDATE vol_story_persona_traits SET trait_flags_1=? WHERE persona_trait_id=? LIMIT 1
+
+&Q`SET`PERSONA_TRAIT`FLAGS_2 [u(cobj,story)]=UPDATE vol_story_persona_traits SET trait_flags_2=? WHERE persona_trait_id=? LIMIT 1
+
+&DO`SET`TRAIT [u(cobj,story)]=@attach %!/SET`TRAIT=%0,%1,%2,1,1,get(%#/D`ID),%3,%4,0,0
+
+&DO`SET`STATIC [u(cobj,story)]=@attach %!/DO`SET`TRAIT=%0,%1,%2,%3,0;
+@@ Sets static traits like Skills/Abilities, Attributes. %0 - target objid, %1 - pipe-delimited path, %2 - trait name, %3 - trait value.
+
+&DO`SET`CUSTOM [u(cobj,story)]=@attach %!/DO`SET`TRAIT=%0,%1,%2,%3,1;
+
+@@ Setters
+&FUN`GETTEMPLATE [u(cobj,story)]=default(%0/D`TEMPLATE,MORTAL)
+
+&CHAR`SET`ADVANTAGES [u(cobj,story)]=@attach %!/INC`PARTIAL=%1,u(TRAITS`ADVANTAGES),|,adv,Advantage;@attach %!/DO`SET`STATIC=%0,Advantages,%q<adv>,%2
+
+&CHAR`SET`ATTRIBUTE [u(cobj,story)]=@attach %!/INC`PARTIAL=%1,u(TRAITS`ATTRIBUTES),|,attr,Attribute;@attach %!/DO`SET`STATIC=%0,Attributes,%q<attr>,%2
+
+&CHAR`SET`TEMPLATE [u(cobj,story)]=@attach %!/INC`PARTIAL=%1,u(TEMPLATES),|,temp,Template;&D`TEMPLATE %0=%q<temp>;@@ Do announce here.
+
+&CHAR`SET`FIELD [u(cobj,story)]=@attach %!/INC`PARTIAL=%1,u(TEMPLATES`[u(setr,template,u(FUN`GETTEMPLATE,%0))]`FIELD),|,field,Field;@select/inline t(strlen(u(setr,choices,u(TEMPLATES`%q<template>`FIELD`[u(setr,efield,edit(%q<field>,%b,_))]))))=1,{@attach %!/INC`PARTIAL=%2,%q<choices>,|,choice,Choices},{th u(setq,choice,squish(%2))};@check strlen(%q<choice>)=@attach %!/INC`MSG=ERROR: That is not a good choice!;@set %0=%q<efield>:%q<choice>
